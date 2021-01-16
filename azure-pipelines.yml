@@ -1,19 +1,95 @@
-# Starter pipeline
-# Start with a minimal pipeline that you can customize to build and deploy your code.
-# Add steps that build, run tests, deploy, and more:
-# https://aka.ms/yaml
-
-trigger: none
-
+ 
+trigger: 
+- develop
+# set branch-policy to run pr trigger
 
 pool:
-  vmImage: 'ubuntu-latest'
-
+  vmImage: 'windows-latest'
+  
 steps:
-- script: echo Hello, world!
-  displayName: 'Run a one-line script'
+- task: CredScan@2
+  displayName: 'Run CredScan'
+  inputs:
+    toolMajorVersion: 'V2'
+    outputFormat: 'sarif'
+    verboseOutput: true
+    batchSize: '20'
 
-- script: |
-    echo Add other tasks to build, test, and deploy your project.
-    echo See https://aka.ms/yaml
-  displayName: 'Run a multi-line script'
+- task: SdtReport@1
+  displayName: 'Create Security Analysis Report'
+  inputs:
+    AllTools: false
+    APIScan: false
+    BinSkim: false
+    CodesignValidation: false
+    CredScan: true
+    FortifySCA: false
+    FxCop: false
+    ModernCop: false
+    MSRD: false
+    PoliCheck: false
+    RoslynAnalyzers: false
+    SDLNativeRules: false
+    Semmle: false
+    TSLint: false
+    ToolLogsNotFoundAction: 'Standard'
+
+- task: PublishSecurityAnalysisLogs@2
+  displayName: 'Publish Security Analysis Logs'
+  inputs:
+    ArtifactName: 'CodeAnalysisLogs'
+    ArtifactType: 'Container'
+    AllTools: false
+    AntiMalware: false
+    APIScan: true
+    BinSkim: false
+    CodesignValidation: true
+    CredScan: true
+    FortifySCA: true
+    FxCop: true
+    ModernCop: true
+    MSRD: false
+    PoliCheck: true
+    RoslynAnalyzers: false
+    SDLNativeRules: true
+    Semmle: true
+    TSLint: false
+    WebScout: true
+    ToolLogsNotFoundAction: 'Standard'
+
+- task: PostAnalysis@1
+  displayName: 'Post Analysis'
+  inputs:
+    AllTools: false
+    APIScan: false
+    BinSkim: false
+    CodesignValidation: false
+    CredScan: true
+    FortifySCA: false
+    FxCop: false
+    ModernCop: false
+    PoliCheck: false
+    RoslynAnalyzers: false
+    SDLNativeRules: false
+    Semmle: false
+    TSLint: false
+    ToolLogsNotFoundAction: 'Standard'
+
+
+- task: CreateWorkItem@1
+  displayName: 'Create work item'
+  inputs:
+    teamProject: '$(AZDOProjectName)'
+    workItemType: 'Bug'
+    title: 'CredScan Task Failed: $(Build.SourceBranchName) $(Build.Reason)'
+    assignedTo: '$(AssignTo)'
+    areaPath: '$(AZDOAreaPath)'
+    iterationPath: '$(AZDOIterationPath)'
+    fieldMappings: 'System Info=Credential Scanning Task Failed. For more information please refer to this <a href="$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)">link</a>'
+    associate: true
+    linkPR: true
+    preventDuplicates: true
+    keyFields: 'System.Title'
+    createOutputs: true
+    outputVariables: 'CWI.Id=System.Id'
+  condition: failed()
